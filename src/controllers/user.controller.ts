@@ -6,8 +6,10 @@ import { db } from "../db/index.ts";
 import { users } from "../schemas/user.schema";
 import { or, eq } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
-import { registerSchema } from "../validators/user.validSchema.ts";
+import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
 import { UserRoles } from "../constants/rolesEnum.ts";
+
+
 
 export const registerUser = asyncHandler( async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
@@ -50,4 +52,51 @@ export const registerUser = asyncHandler( async (req: Request, res: Response) =>
         .status(201)
         .json(new ApiResponse(201, createdUser, "User created Successfully."));
 
+});
+
+
+
+export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
+    const parsed = loginSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+        throw new ApiError(400, "Invalid input.", parsed.error.errors)
+    }
+
+    const { email, password } = parsed.data;
+    
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    if (!user) {
+        throw new ApiError(409,"User with this email does not exists.")
+    }
+
+    const passwordMatched = await verifyPassword(password, user.password);
+    if (!passwordMatched) {
+        throw new ApiError(401,"Password donot match.");
+    }
+
+    const { password :_removed, ...userWithoutPassword } = user;
+
+    const accessToken = generateAccessToken({
+        id: user.id,
+        email: user.email,
+        username: user.email,
+        role: user.role,
+    });
+
+    const refreshToken = generateRefreshToken({id: user.id});
+
+    return res
+        .status(201)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: userWithoutPassword,
+                    accessToken,
+                    refreshToken,
+                },
+                "User logged in successfully."
+            )
+        );
 });
