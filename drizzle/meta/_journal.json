@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1750248041915,
+      "tag": "0000_mixed_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1750337693224,
+      "tag": "0001_black_wrecking_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750436273975,
+      "tag": "0002_medical_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750692154533,
+      "tag": "0003_eager_captain_britain",
+      "breakpoints": true
+    }
+  ]
+}
