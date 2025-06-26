@@ -9,7 +9,9 @@ import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken
 import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
 import { UserRoles } from "../constants/rolesEnum.ts";
 
-
+interface RequestWithUser extends Request {
+    user: typeof users.$inferSelect;
+}
 
 export const registerUser = asyncHandler( async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
@@ -86,6 +88,10 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
 
     const refreshToken = generateRefreshToken({id: user.id});
 
+    await db.update(users)
+        .set({refreshToken})
+        .where(eq(users.id , user.id));
+
     const options = {
         httpOnly: true,
         secure: true,
@@ -111,13 +117,12 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
 
 
 
-export const logoutUser = asyncHandler ( async (req: Request, res: Response) => {
-    const accessToken = req.cookies?.accessToken ;
-    const refreshToken = req.cookies?.refreshToken ;
+export const logoutUser = asyncHandler( async (req: Request, res: Response) => {
 
-    if (!accessToken || !refreshToken) {
-        throw new ApiError(401,"No token found to logout user");
-    }
+    const typedReq = req as RequestWithUser;
+    await db.update(users)
+        .set({ refreshToken: null })
+        .where(eq(users.id, typedReq.user.id));
 
     const options = {
         httpOnly : true,
