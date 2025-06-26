@@ -79,15 +79,23 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
 
     const accessToken = generateAccessToken({
         id: user.id,
+        username: user.username,
         email: user.email,
-        username: user.email,
         role: user.role,
     });
 
     const refreshToken = generateRefreshToken({id: user.id});
 
+    const options = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict" as const,
+    }
+
     return res
         .status(201)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
         .json(
             new ApiResponse(
                 200,
@@ -100,3 +108,27 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
             )
         );
 });
+
+
+
+export const logoutUser = asyncHandler ( async (req: Request, res: Response) => {
+    const accessToken = req.cookies?.accessToken ;
+    const refreshToken = req.cookies?.refreshToken ;
+
+    if (!accessToken || !refreshToken) {
+        throw new ApiError(401,"No token found to logout user");
+    }
+
+    const options = {
+        httpOnly : true,
+        secure: true,
+        sameSite: "strict" as const,
+    }
+
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(new ApiResponse(200,{},"User Logged Out Successfully."))
+});
+
