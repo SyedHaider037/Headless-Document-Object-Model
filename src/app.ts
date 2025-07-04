@@ -30,9 +30,10 @@ app.get('/', (req, res) => {
     res.send('Hello World')
 })
 
-
 import userRouter from "./routes/user.router.ts";
+import documentRouter from "./routes/document.router.ts"
 
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/documents", documentRouter);
 
 export { app }

@@ -1,9 +1,9 @@
-import { Request, Response } from "express"
+import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { db } from "../db/index.ts";
-import { users } from "../schemas/user.schema";
+import { users } from "../schemas/user.schema.ts";
 import { or, eq } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
 import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
@@ -100,6 +100,7 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
         httpOnly: true,
         secure: true,
         sameSite: "strict" as const,
+        maxAge: 5 * 24 * 60 * 60 * 1000,
     }
 
     return res
@@ -132,6 +133,7 @@ export const logoutUser = asyncHandler( async (req: Request, res: Response) => {
         httpOnly : true,
         secure: true,
         sameSite: "strict" as const,
+        maxAge: 5 * 24 * 60 * 60 * 1000,
     }
 
     return res
@@ -160,12 +162,14 @@ export const refreshAccessToken = asyncHandler ( async (req: Request, res: Respo
         }
     
         if (incomingRequest !== existedUser?.refreshToken) {
-            throw new ApiError(400, "Refresh Token is expired")
+            throw new ApiError(403, "Refresh token is no longer valid or has been rotated");
         }
     
         const options = {
             httpOnly: true,
-            secure: true
+            secure: true,
+            sameSite: "strict" as const,
+            maxAge: 5 * 24 * 60 * 60 * 1000,
         }
         
         const accessToken = generateAccessToken({

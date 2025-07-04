@@ -10,7 +10,7 @@ interface RequestWithUser extends Request {
     user?: typeof users.$inferSelect;
 }
 
-type MyToken ={
+export type MyToken ={
     id: string,
     username: string,
     email: string,

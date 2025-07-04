@@ -1,0 +1,1 @@
+ALTER TABLE "permissions" ALTER COLUMN "can_read" SET DEFAULT true;
