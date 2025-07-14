@@ -1,1 +1,0 @@
-ALTER TABLE "permissions" ADD CONSTRAINT "permissions_userId_documentId_unique" UNIQUE("userId","documentId");
