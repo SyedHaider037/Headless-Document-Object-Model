@@ -8,8 +8,10 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "drizzle:generate": "drizzle-kit generate",
+    "drizzle:migrate": "drizzle-kit migrate",
     "drizzle:push": "drizzle-kit push:pg",
-    "drizzle:studio": "drizzle-kit studio"
+    "drizzle:studio": "drizzle-kit studio",
+    "seed": "tsx src/db/seeders/runSeeder.ts"
   },
   "keywords": [],
   "author": "",

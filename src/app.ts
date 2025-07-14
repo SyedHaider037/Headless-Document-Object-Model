@@ -20,8 +20,6 @@ app.use(express.urlencoded({
     limit: "50kb"
 }))
 
-app.use(express.static("public"))
-
 app.use(cookieParser())
 
 app.use(morgan("dev"))

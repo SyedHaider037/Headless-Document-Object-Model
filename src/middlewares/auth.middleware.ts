@@ -6,8 +6,8 @@ import { db } from "../db/index.ts";
 import { users } from "../schemas/user.schema";
 import { eq } from "drizzle-orm";
 
-interface RequestWithUser extends Request {
-    user?: typeof users.$inferSelect;
+export interface RequestWithUser extends Request {
+    user?: typeof users.$inferSelect & { role?: "ADMIN" | "USER" };
 }
 
 export type MyToken ={
@@ -41,6 +41,10 @@ export const verifyJWT = asyncHandler( async (req:RequestWithUser, _: Response, 
         throw new ApiError(401, "User does not exist.");
     }
     
-    req.user = existedUser;
+    req.user = {
+        ...existedUser,
+        role: decodedToken.role as "ADMIN" | "USER",
+    };
+    console.log(req.user.role);
     next();
 });

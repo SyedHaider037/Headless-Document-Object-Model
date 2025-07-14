@@ -4,19 +4,18 @@ import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import { db } from "../db/index.ts";
 import { users } from "../schemas/user.schema.ts";
+import { userRoles } from "../schemas/userRoles.schema.ts";
+import { roles } from "../schemas/roles.schema.ts";
 import { or, eq } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
 import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
-import { UserRoles } from "../constants/rolesEnum.ts";
 import jwt from "jsonwebtoken";
-
-interface RequestWithUser extends Request {
-    user: typeof users.$inferSelect;
-}
+import { RequestWithUser } from "../middlewares/auth.middleware.ts";
 
 type MyToken = {
-  id: string;
+    id: string;
 }
+
 export const registerUser = asyncHandler( async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
 
@@ -39,24 +38,36 @@ export const registerUser = asyncHandler( async (req: Request, res: Response) =>
         throw new ApiError(400, "User already exists with this Username or Email.");
     }
 
+    const [roleRow] = await db
+        .select()
+        .from(roles)
+        .where(eq(roles.name, role)); 
+
+    if (!roleRow) {
+        throw new ApiError(400, "Invalid role provided");
+    }    
+
     const hashed = await hashPassword(password);
 
-    const createdUser = await db.insert(users).values({
+    const [createdUser] = await db.insert(users).values({
         username,
         email, 
         password : hashed,
-        role: role as UserRoles,
     })
     .returning({ 
         id: users.id,
         username: users.username,
         email: users.email,
-        role: users.role,
-    })
+    });
+
+    await db.insert(userRoles).values({
+        userId: createdUser.id,
+        roleId: roleRow.id,
+    });    
 
     return res
         .status(201)
-        .json(new ApiResponse(201, createdUser, "User created Successfully."));
+        .json(new ApiResponse(201, createdUser, "User created Successfully."))
 
 });
 
@@ -64,6 +75,7 @@ export const registerUser = asyncHandler( async (req: Request, res: Response) =>
 
 export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
+    console.log(req);
 
     if (!parsed.success) {
         throw new ApiError(400, "Invalid input.", parsed.error.errors)
@@ -81,20 +93,28 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
         throw new ApiError(401,"Password donot match.");
     }
 
-    const { password :_removed, ...userWithoutPassword } = user;
+    const { password :_removed, refreshToken: _removedtoken, ...userWithoutPassword } = user;
+
+    const [userRoleRow] = await db
+        .select({ name: roles.name })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(userRoles.userId, user.id));
+
+    if (!userRoleRow) {
+        throw new ApiError(403, "No role assigned to user.");
+    }    
 
     const accessToken = generateAccessToken({
         id: user.id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: userRoleRow.name,
     });
 
     const refreshToken = generateRefreshToken({id: user.id});
 
-    await db.update(users)
-        .set({refreshToken})
-        .where(eq(users.id , user.id));
+    await db.update(users).set({refreshToken}).where(eq(users.id , user.id));
 
     const options = {
         httpOnly: true,
@@ -104,7 +124,7 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
     }
 
     return res
-        .status(201)
+        .status(200)
         .cookie("accessToken", accessToken, options)
         .cookie("refreshToken", refreshToken, options)
         .json(
@@ -112,6 +132,7 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
                 200,
                 {
                     user: userWithoutPassword,
+                    role: userRoleRow.name,
                     accessToken,
                     refreshToken,
                 },
@@ -122,12 +143,15 @@ export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
 
 
 
-export const logoutUser = asyncHandler( async (req: Request, res: Response) => {
+export const logoutUser = asyncHandler( async (req: RequestWithUser, res: Response) => {
 
-    const typedReq = req as RequestWithUser;
+    if (!req.user) {
+        throw new ApiError(401, "Unauthorized: user not found");
+    }
+
     await db.update(users)
         .set({ refreshToken: null })
-        .where(eq(users.id, typedReq.user.id));
+        .where(eq(users.id, req.user.id));
 
     const options = {
         httpOnly : true,
@@ -164,19 +188,22 @@ export const refreshAccessToken = asyncHandler ( async (req: Request, res: Respo
         if (incomingRequest !== existedUser?.refreshToken) {
             throw new ApiError(403, "Refresh token is no longer valid or has been rotated");
         }
-    
-        const options = {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict" as const,
-            maxAge: 5 * 24 * 60 * 60 * 1000,
+
+        const [userRoleRow] = await db
+            .select({ name: roles.name })
+            .from(userRoles)
+            .innerJoin(roles, eq(userRoles.roleId, roles.id))
+            .where(eq(userRoles.userId, existedUser.id));
+
+        if (!userRoleRow) {
+            throw new ApiError(403, "User does not have any role assigned.");
         }
-        
+    
         const accessToken = generateAccessToken({
             id: existedUser.id,
             username: existedUser.username,
             email: existedUser.email,
-            role: existedUser.role,
+            role: userRoleRow.name, 
         });
 
         const newRefreshToken = generateRefreshToken({id: existedUser.id});
@@ -184,6 +211,13 @@ export const refreshAccessToken = asyncHandler ( async (req: Request, res: Respo
         await db.update(users)
             .set({refreshToken: newRefreshToken})
             .where(eq(users.id , existedUser.id));
+        
+        const options = {
+            httpOnly: true,
+            secure: true,
+            sameSite: "strict" as const,
+            maxAge: 5 * 24 * 60 * 60 * 1000,
+        }    
 
         return res
         .status(200)
