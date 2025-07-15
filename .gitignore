@@ -10,6 +10,7 @@ lerna-debug.log*
 /public/
 
 # Drizzle generated files (DO NOT push)
+/drizzle/
 drizzle/schema.ts
 drizzle/*.sql          # Optional: keep if you're working with a team
 .drizzle/              # Drizzle internal files/cache
