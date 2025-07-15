@@ -2,18 +2,13 @@ import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
-import { db } from "../db/index.ts";
-import { users } from "../schemas/user.schema.ts";
-import { userRoles } from "../schemas/userRoles.schema.ts";
-import { roles } from "../schemas/roles.schema.ts";
-import { or, eq } from "drizzle-orm";
-import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
 import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
-import jwt from "jsonwebtoken";
 import { RequestWithUser } from "../middlewares/auth.middleware.ts";
 import { UserService } from "../services/user.service";
+import { UserRepository } from "../repositories/user.repository.ts";
 
-const userService = new UserService();
+const userRepository = new UserRepository();
+const userService = new UserService(userRepository);
 
 const cookieOptions = {
     httpOnly: true,

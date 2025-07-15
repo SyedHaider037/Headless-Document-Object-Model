@@ -8,12 +8,14 @@ import jwt from "jsonwebtoken";
 import path from "path";
 import fs from "fs";
 import { DocumentService } from "../services/document.service";
+import { DocumentRepository } from "../repositories/document.repository";
 
 interface RequestWithUser extends Request {
     user: typeof users.$inferSelect & { role?: "ADMIN" | "USER" };
 }
 
-const documentService = new DocumentService();
+const documentRepository = new DocumentRepository();
+const documentService = new DocumentService(documentRepository);
 
 export const createDocument = asyncHandler(
     async (req: Request, res: Response) => {
@@ -140,6 +142,7 @@ export const generateDownloadLink = asyncHandler(
             );
     }
 );
+
 
 export const streamDocumentFromToken = asyncHandler(async (req, res) => {
     const token = req.params.token;

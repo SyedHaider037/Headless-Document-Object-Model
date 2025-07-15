@@ -1,47 +1,45 @@
 import { IUserService } from "../interfaces/userService.interface";
+import { IUserRepository } from "../interfaces/userRepository.interface";
 import { RegisterUserDTO, LoginUserDTO, TokenPayload } from "../dtos/user.dto";
-import { db } from "../db";
-import { users } from "../schemas/user.schema";
-import { userRoles } from "../schemas/userRoles.schema";
-import { roles } from "../schemas/roles.schema";
-import { or, eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
 import { ApiError } from "../utils/ApiError";
 
 export class UserService implements IUserService {
+    constructor(private readonly repo: IUserRepository) {}
     async register(data: RegisterUserDTO): Promise<any> {
         const { username, email, password, role } = data;
 
-        const [existing] = await db.select().from(users).where(or(eq(users.username, username), eq(users.email, email)));
+        const existing = await this.repo.findByEmail(email);
         if (existing) throw new ApiError(400, "User already exists");
 
-        const [roleRow] = await db.select().from(roles).where(eq(roles.name, role));
+        const roleRow = await this.repo.findRoleByName(role);
+
         if (!roleRow) throw new ApiError(400, "Invalid role provided");
 
         const hashedPassword = await hashPassword(password);
 
-        const [createdUser] = await db.insert(users).values({
+        const [createdUser] =  await this.repo.create({
             username,
             email,
             password: hashedPassword,
-        }).returning({ id: users.id, username: users.username, email: users.email });
+            role,
+        });
 
-        await db.insert(userRoles).values({ userId: createdUser.id, roleId: roleRow.id });
-
+        await this.repo.assignRole(createdUser.id, roleRow.id);
         return createdUser;
     }
 
     async login(data: LoginUserDTO) {
         const { email, password } = data;
 
-        const [user] = await db.select().from(users).where(eq(users.email, email));
+        const user = await this.repo.findByEmail(email);
         if (!user) throw new ApiError(404, "User not found");
 
         const passwordMatch = await verifyPassword(password, user.password);
         if (!passwordMatch) throw new ApiError(401, "Incorrect password");
 
-        const [roleRow] = await db.select({ name: roles.name }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(userRoles.userId, user.id));
+        const roleRow = await this.repo.findRoleByUserId(user.id);
         if (!roleRow) throw new ApiError(403, "Role not assigned");
 
         const tokenPayload: TokenPayload = {
@@ -54,14 +52,14 @@ export class UserService implements IUserService {
         const accessToken = generateAccessToken(tokenPayload);
         const refreshToken = generateRefreshToken({ id: user.id });
 
-        await db.update(users).set({ refreshToken }).where(eq(users.id, user.id));
+        await this.repo.updateRefreshToken(user.id, refreshToken);
 
         const { password: _, refreshToken: __, ...userSafe } = user;
         return { user: userSafe, role: roleRow.name, accessToken, refreshToken };
     }
 
     async logout(userId: string): Promise<void> {
-        await db.update(users).set({ refreshToken: null }).where(eq(users.id, userId));
+        await this.repo.updateRefreshToken(userId, null);
     }
 
     async refreshAccessToken(oldRefreshToken: string) {
@@ -73,14 +71,14 @@ export class UserService implements IUserService {
             throw new ApiError(401, error?.message || "Invalid refresh token");
         }
 
-        const [user] = await db.select().from(users).where(eq(users.id, decoded.id));
+        const user = await this.repo.findById(decoded.id);
         if (!user) throw new ApiError(401, "User not found");
 
         if (user.refreshToken !== oldRefreshToken) {
             throw new ApiError(403, "Refresh token expired or rotated");
         }
 
-        const [roleRow] = await db.select({ name: roles.name }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(eq(userRoles.userId, user.id));
+        const roleRow = await this.repo.findRoleByUserId(user.id);
         if (!roleRow) throw new ApiError(403, "No role assigned");
 
         const accessToken = generateAccessToken({
@@ -91,7 +89,7 @@ export class UserService implements IUserService {
         });
 
         const newRefreshToken = generateRefreshToken({ id: user.id });
-        await db.update(users).set({ refreshToken: newRefreshToken }).where(eq(users.id, user.id));
+        await this.repo.updateRefreshToken(user.id, newRefreshToken);
 
         return { accessToken, refreshToken: newRefreshToken };
     }

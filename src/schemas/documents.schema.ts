@@ -7,7 +7,7 @@ export const documents = pgTable("documents", {
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
     tag: varchar("tag", { length: 100 }).notNull(),
-    filepath: varchar("filepath", { length: 512 }).notNull(),
+    filePath: varchar("filepath", { length: 512 }).notNull(),
     uploadedBy: uuid("uploadedBy").references(() => users.id).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),

@@ -13,4 +13,4 @@ export interface IUserService {
         accessToken: string;
         refreshToken: string;
     }>;
-}''
+}
