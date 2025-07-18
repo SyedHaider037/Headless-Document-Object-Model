@@ -1,14 +1,16 @@
 import jwt from "jsonwebtoken";
-import { asyncHandler } from "../utils/asyncHandler";
-import { ApiError } from "../utils/ApiError";
+import { asyncHandler } from "../utils/asyncHandler.ts";
+import { ApiError } from "../utils/ApiError.ts";
 import { Request, Response, NextFunction } from "express";
-import { db } from "../db/index.ts";
-import { users } from "../schemas/user.schema";
-import { eq } from "drizzle-orm";
+import { users } from "../schemas/user.schema.ts";
+import { container } from "tsyringe";
+import { AuthService } from "../services/auth.service.ts";
 
 export interface RequestWithUser extends Request {
     user?: typeof users.$inferSelect & { role?: "ADMIN" | "USER" };
 }
+
+const userRepo = container.resolve(AuthService)
 
 export type MyToken ={
     id: string,
@@ -20,9 +22,7 @@ export type MyToken ={
 export const verifyJWT = asyncHandler( async (req:RequestWithUser, _: Response, next: NextFunction) => {
     const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer","");
     
-    if (!token) {
-        throw new ApiError(401, "Unauthorized request")
-    }
+    if (!token) throw new ApiError(401, "Unauthorized request")
 
     let decodedToken: MyToken;
     
@@ -35,16 +35,14 @@ export const verifyJWT = asyncHandler( async (req:RequestWithUser, _: Response, 
         throw new ApiError(401,"Invalid access token")
     }
     
-    const [existedUser] = await db.select().from(users).where(eq(users.id, decodedToken.id));
+    const existedUser = await userRepo.getUserById(decodedToken.id)
     
-    if (!existedUser) {
-        throw new ApiError(401, "User does not exist.");
-    }
+    if (!existedUser) throw new ApiError(401, "User does not exist.");
     
     req.user = {
         ...existedUser,
         role: decodedToken.role as "ADMIN" | "USER",
     };
-    console.log(req.user.role);
+
     next();
 });

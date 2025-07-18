@@ -1,21 +1,20 @@
 import { Request, Response } from "express";
-import { ApiError } from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
-import { asyncHandler } from "../utils/asyncHandler";
+import { ApiError } from "../utils/ApiError.ts";
+import { ApiResponse } from "../utils/ApiResponse.ts";
+import { asyncHandler } from "../utils/asyncHandler.ts";
 import { createDocumentSchema, updateDocumentSchema, documentSearchSchema } from "../validators/document.validSchema.ts";
 import { users } from "../schemas/user.schema.ts";
 import jwt from "jsonwebtoken";
 import path from "path";
 import fs from "fs";
-import { DocumentService } from "../services/document.service";
-import { DocumentRepository } from "../repositories/document.repository";
+import { DocumentService } from "../services/document.service.ts";
+import { container } from "tsyringe";
 
 interface RequestWithUser extends Request {
     user: typeof users.$inferSelect & { role?: "ADMIN" | "USER" };
 }
 
-const documentRepository = new DocumentRepository();
-const documentService = new DocumentService(documentRepository);
+const documentService = container.resolve(DocumentService)
 
 export const createDocument = asyncHandler(
     async (req: Request, res: Response) => {

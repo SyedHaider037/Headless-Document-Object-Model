@@ -3,11 +3,13 @@ import path from "path";
 import jwt from "jsonwebtoken";
 import { IDocumentService } from "../interfaces/documentService.interface.ts";
 import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO } from "../dtos/document.dto.ts";
-import { IDocumentRepository } from "../interfaces/documentRepository.interface";
+import { IDocumentRepository } from "../interfaces/documentRepository.interface.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../token.ts";
 
-
+@injectable()
 export class DocumentService implements IDocumentService {
-    constructor(private readonly repo: IDocumentRepository) {}
+    constructor(@inject(TOKENS.IDocumentRepository) private readonly repo: IDocumentRepository) {}
     async uploadDocument(data: UploadDocumentDTO): Promise<void> {
         await this.repo.create(data);
     }
@@ -26,7 +28,7 @@ export class DocumentService implements IDocumentService {
 
         const deleted = await this.repo.delete(id);
 
-        const fullPath = path.join(process.cwd(), document.filepath);
+        const fullPath = path.join(process.cwd(), document.filePath);
         if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
         return deleted;
@@ -55,7 +57,7 @@ export class DocumentService implements IDocumentService {
         const document = await this.repo.findById(id);
         if (!document) throw new Error("Document not found");
 
-        const filePath = path.join(process.cwd(), document.filepath);
+        const filePath = path.join(process.cwd(), document.filePath);
         const fileExt = path.extname(filePath);
         const filename = `${document.title}${fileExt}`;
 

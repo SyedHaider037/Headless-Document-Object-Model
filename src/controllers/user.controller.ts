@@ -1,14 +1,13 @@
 import { Request, Response } from "express";
-import { ApiError } from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
-import { asyncHandler } from "../utils/asyncHandler";
+import { ApiError } from "../utils/ApiError.ts";
+import { ApiResponse } from "../utils/ApiResponse.ts";
+import { asyncHandler } from "../utils/asyncHandler.ts";
 import { registerSchema, loginSchema } from "../validators/user.validSchema.ts";
 import { RequestWithUser } from "../middlewares/auth.middleware.ts";
-import { UserService } from "../services/user.service";
-import { UserRepository } from "../repositories/user.repository.ts";
+import { UserService } from "../services/user.service.ts";
+import { container } from "tsyringe";
 
-const userRepository = new UserRepository();
-const userService = new UserService(userRepository);
+const userService = container.resolve(UserService);
 
 const cookieOptions = {
     httpOnly: true,
@@ -35,7 +34,6 @@ export const registerUser = asyncHandler( async (req: Request, res: Response) =>
 
 export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
-    console.log(req);
 
     if (!parsed.success) {
         throw new ApiError(400, "Invalid input.", parsed.error.errors)

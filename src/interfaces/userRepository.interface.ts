@@ -1,4 +1,4 @@
-import { RegisterUserDTO } from "../dtos/user.dto";
+import { RegisterUserDTO } from "../dtos/user.dto.ts";
 
 export interface IUserRepository {
     create(data: RegisterUserDTO): Promise<any>;

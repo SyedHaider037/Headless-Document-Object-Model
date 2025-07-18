@@ -1,4 +1,4 @@
-import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO } from "../dtos/document.dto";
+import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO } from "../dtos/document.dto.ts";
 
 export interface IDocumentRepository {
     create(data: UploadDocumentDTO): Promise<void>;

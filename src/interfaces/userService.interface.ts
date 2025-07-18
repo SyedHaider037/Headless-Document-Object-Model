@@ -1,4 +1,4 @@
-import { RegisterUserDTO, LoginUserDTO, TokenPayload } from "../dtos/user.dto";
+import { RegisterUserDTO, LoginUserDTO} from "../dtos/user.dto";
 
 export interface IUserService {
     register(data: RegisterUserDTO): Promise<any>;

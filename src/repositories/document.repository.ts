@@ -1,7 +1,7 @@
-import { db } from "../db";
-import { documents } from "../schemas/documents.schema";
-import { IDocumentRepository } from "../interfaces/documentRepository.interface";
-import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO,} from "../dtos/document.dto";
+import { db } from "../db/index.ts";
+import { documents } from "../schemas/documents.schema.ts";
+import { IDocumentRepository } from "../interfaces/documentRepository.interface.ts";
+import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO,} from "../dtos/document.dto.ts";
 import { eq, like, or, gte, lte } from "drizzle-orm";
 
 export class DocumentRepository implements IDocumentRepository {

@@ -1,3 +1,5 @@
+import "reflect-metadata"
+import "./container.ts"
 import './db/index.ts'
 import { app } from './app.ts'
 import "dotenv/config"

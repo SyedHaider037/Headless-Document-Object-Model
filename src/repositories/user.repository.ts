@@ -1,9 +1,9 @@
-import { db } from "../db";
-import { users } from "../schemas/user.schema";
-import { roles } from "../schemas/roles.schema";
-import { userRoles } from "../schemas/userRoles.schema";
-import { IUserRepository } from "../interfaces/userRepository.interface";
-import { RegisterUserDTO } from "../dtos/user.dto";
+import { db } from "../db/index.ts";
+import { users } from "../schemas/user.schema.ts";
+import { roles } from "../schemas/roles.schema.ts";
+import { userRoles } from "../schemas/userRoles.schema.ts";
+import { IUserRepository } from "../interfaces/userRepository.interface.ts";
+import { RegisterUserDTO } from "../dtos/user.dto.ts";
 import { eq } from "drizzle-orm";
 
 export class UserRepository implements IUserRepository {

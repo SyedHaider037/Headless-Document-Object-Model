@@ -1,12 +1,15 @@
-import { IUserService } from "../interfaces/userService.interface";
-import { IUserRepository } from "../interfaces/userRepository.interface";
-import { RegisterUserDTO, LoginUserDTO, TokenPayload } from "../dtos/user.dto";
+import { IUserService } from "../interfaces/userService.interface.ts";
+import { IUserRepository } from "../interfaces/userRepository.interface.ts";
+import { RegisterUserDTO, LoginUserDTO, TokenPayload } from "../dtos/user.dto.ts";
 import jwt from "jsonwebtoken";
-import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth";
-import { ApiError } from "../utils/ApiError";
+import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../lib/jwt&bcryptAuth.ts";
+import { ApiError } from "../utils/ApiError.ts";
+import { inject, injectable } from "tsyringe";
+import { TOKENS } from "../token.ts";
 
+@injectable()
 export class UserService implements IUserService {
-    constructor(private readonly repo: IUserRepository) {}
+    constructor(@inject(TOKENS.IUserRepository) private readonly repo: IUserRepository) {}
     async register(data: RegisterUserDTO): Promise<any> {
         const { username, email, password, role } = data;
 

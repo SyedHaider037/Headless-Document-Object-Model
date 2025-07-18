@@ -1,83 +1,28 @@
-import { db } from "../db/index.ts";
-import { documents } from "../schemas/documents.schema.ts";
-import { rolePermission } from "../schemas/rolesPermission.schema.ts";
-import { userRoles } from "../schemas/userRoles.schema.ts";
-import { globalPermissions } from "../schemas/globalPermission.schema.ts";
-import { eq, and } from "drizzle-orm";
 import { ApiError } from "../utils/ApiError.ts";
 import { asyncHandler } from "../utils/asyncHandler.ts";
 import { Response, NextFunction } from "express";
 import { RequestWithUser } from "./auth.middleware.ts";
+import { PermissionService } from "../services/permission.service.ts";
+import { container } from "tsyringe";
+
+const permissionService = container.resolve(PermissionService)
 
 export const canChangeDocument = (action: "UPDATE_DOCUMENT" | "DELETE_DOCUMENT") =>
     asyncHandler ( async (req: RequestWithUser, _: Response, next: NextFunction) => {
-        const docId = req.params.id;
-        const user = req.user;
-
-        if (!user) {
+        if (!req.user) {
             throw new ApiError(401, "Unauthorized: user not found in request");
         }
 
-        const [document] = await db
-            .select()
-            .from(documents)
-            .where(eq(documents.id, docId));
+        const allowed = await permissionService.canUserChangeDocument(
+            req.user.id,
+            req.user.role!,
+            req.params.id,
+            action
+        );
 
-        if (!document) {
-            throw new ApiError(404, "Document not found");
+        if (!allowed) {
+            throw new ApiError(403, "You are not authorized to perform this action");
         }
 
-        const [roleRow] = await db
-            .select({ roleId: userRoles.roleId })
-            .from(userRoles)
-            .where(eq(userRoles.userId, user.id));
-
-        if (!roleRow) {
-            throw new ApiError(403, "No role assigned to user");
-        }
-
-        const roleId = roleRow.roleId;
-
-        if (document.uploadedBy === user.id) {
-            const [ownerPermission] = await db
-                .select()
-                .from(rolePermission)
-                .innerJoin(
-                    globalPermissions,
-                    eq(rolePermission.permissionId, globalPermissions.id)
-                )
-                .where(
-                    and(
-                        eq(rolePermission.roleId, roleId),
-                        eq(globalPermissions.action, action)
-                    )
-                );
-
-            if (!ownerPermission) {
-                throw new ApiError(403,`You don't have permission to ${action.toLowerCase()} your document`);
-            }
-            console.log(ownerPermission);
-            return next(); 
-        }
-
-        if (user.role === "ADMIN") {
-            const [adminPermission] = await db
-                .select()
-                .from(rolePermission)
-                .innerJoin(
-                    globalPermissions,
-                    eq(rolePermission.permissionId, globalPermissions.id)
-                )
-                .where(
-                    and(
-                        eq(rolePermission.roleId, roleId),
-                        eq(globalPermissions.action, action)
-                    )
-                ); 
-
-            if (adminPermission) return next(); 
-            console.log(adminPermission);
-        }
-        throw new ApiError(403,"You are not authorized to perform this action");
-    }
-);
+    return next();
+});
