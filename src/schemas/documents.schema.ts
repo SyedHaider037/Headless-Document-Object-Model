@@ -1,5 +1,5 @@
 import { users } from "./user.schema.ts";
-import { pgTable, uuid, varchar, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, timestamp } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm"
 
 export const documents = pgTable("documents", {

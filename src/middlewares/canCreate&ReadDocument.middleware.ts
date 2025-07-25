@@ -1,3 +1,4 @@
+import { matchRes } from "@carbonteq/fp";
 import { ApiError } from "../utils/ApiError.ts";
 import { asyncHandler } from "../utils/asyncHandler.ts";
 import { RequestWithUser } from "./auth.middleware.ts";
@@ -14,14 +15,18 @@ export const canCreateReadDocument = ( action: "CREATE_DOCUMENT" | "READ_DOCUMEN
             throw new ApiError(401,"Unauthorized: user not found in request");
         }
 
-        const allowed = await permissionService.canUserPerformAction(
-            req.user.id,
-            action
-        );
+        const result = await permissionService.canUserPerformAction(req.user.id, action);
 
-        if (!allowed) {
-            throw new ApiError(403, `You are not allowed to ${action.toLowerCase()}`);
-        }
-        return next();
+        return matchRes(result, {
+            Ok: (allowed) => {
+                if (!allowed) {
+                    throw new ApiError(403, `You are not allowed to ${action.toLowerCase()}`);
+                }
+                return next();
+            },
+            Err: (err) => {
+                throw new ApiError(403, err);
+            },
+        });
     }
 );

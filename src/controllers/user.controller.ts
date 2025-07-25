@@ -1,3 +1,4 @@
+import { matchRes } from "@carbonteq/fp";
 import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError.ts";
 import { ApiResponse } from "../utils/ApiResponse.ts";
@@ -16,82 +17,88 @@ const cookieOptions = {
     maxAge: 5 * 24 * 60 * 60 * 1000, // 5 days
 };
 
-
-export const registerUser = asyncHandler( async (req: Request, res: Response) => {
+export const registerUser = asyncHandler(async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
 
     if (!parsed.success) throw new ApiError(400, "Invalid input", parsed.error.errors);
 
-    const createdUser = await userService.register(parsed.data);
+    const result = await userService.register(parsed.data);
 
-    return res
-        .status(201)
-        .json(new ApiResponse(201, createdUser, "User created Successfully."))
-
+    return matchRes(result, {
+        Ok: (user) => 
+            res.status(201).json(new ApiResponse(201, { user }, "User created successfully.")),
+        Err: (err) => 
+            res.status(400).json(new ApiResponse(400, {}, err)),
+    });
 });
 
-
-
-export const loginUser = asyncHandler ( async (req: Request, res: Response) => {
+export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
 
-    if (!parsed.success) {
-        throw new ApiError(400, "Invalid input.", parsed.error.errors)
-    }
+    if (!parsed.success) throw new ApiError(400, "Invalid input", parsed.error.errors);
 
-    const { user, role, accessToken, refreshToken } = await userService.login(parsed.data);
+    const result = await userService.login(parsed.data);
 
-    return res
-        .status(200)
-        .cookie("accessToken", accessToken, cookieOptions)
-        .cookie("refreshToken", refreshToken, cookieOptions)
-        .json(
-            new ApiResponse(
-                200,
-                {
-                    user, 
-                    role,
-                    accessToken,
-                    refreshToken,
-                },
-                "User logged in successfully."
-            )
-        );
+    return matchRes(result, {
+        Ok: ({ user, role, accessToken, refreshToken }) =>
+            res
+                .status(200)
+                .cookie("accessToken", accessToken, cookieOptions)
+                .cookie("refreshToken", refreshToken, cookieOptions)
+                .json(
+                    new ApiResponse(
+                        200,
+                        { user, role, accessToken, refreshToken },
+                        "User logged in successfully."
+                    )
+                ),
+
+        Err: (err) => 
+            res.status(401).json(new ApiResponse(401, {}, err)),
+    });
 });
 
-
-
-export const logoutUser = asyncHandler( async (req: RequestWithUser, res: Response) => {
-
+export const logoutUser = asyncHandler(async (req: RequestWithUser, res: Response) => {
     if (!req.user) throw new ApiError(401, "Unauthorized: user not found");
 
-    await userService.logout(req.user.id);
+    const result = await userService.logout(req.user.id);
 
-    return res
-        .status(200)
-        .clearCookie("accessToken", cookieOptions)
-        .clearCookie("refreshToken", cookieOptions)
-        .json(new ApiResponse(200,{},"User Logged Out Successfully."))
+    return matchRes(result, {
+        Ok: () =>
+            res
+                .status(200)
+                .clearCookie("accessToken", cookieOptions)
+                .clearCookie("refreshToken", cookieOptions)
+                .json(new ApiResponse(200, {}, "User logged out successfully.")),
+
+        Err: (err) =>
+            res.status(500).json(new ApiResponse(500, {}, err)),
+    });
 });
 
-
-
-export const refreshAccessToken = asyncHandler ( async (req: Request, res: Response) => {
+export const refreshAccessToken = asyncHandler(async (req: Request, res: Response) => {
     const incomingToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
-    if (!incomingToken) throw new ApiError(401,"Unauthorized Request");
+    if (!incomingToken)
+        throw new ApiError(401, "Unauthorized request, missing refresh token");
 
-    const { accessToken, refreshToken } = await userService.refreshAccessToken(incomingToken);   
+    const result = await userService.refreshAccessToken(incomingToken);
 
-    return res
-    .status(200)
-    .cookie("accessToken", accessToken, cookieOptions)
-    .cookie("refreshToken", refreshToken, cookieOptions)
-    .json(
-            new ApiResponse(
-            200,
-            {accessToken, refreshToken},
-            "Access token refreshed"
-        )
-    );
+    return matchRes(result, {
+        Ok: ({ accessToken, refreshToken }) =>
+            res
+                .status(200)
+                .cookie("accessToken", accessToken, cookieOptions)
+                .cookie("refreshToken", refreshToken, cookieOptions)
+                .json(
+                    new ApiResponse(
+                        200,
+                        { accessToken, refreshToken },
+                        "Access token refreshed"
+                    )
+                ),
+
+        Err: (err) => 
+            res.status(401).json(new ApiResponse(401, {}, err)),
+    });
 });

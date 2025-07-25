@@ -1,10 +1,11 @@
+import { Result } from "@carbonteq/fp";
 import { UploadDocumentDTO, UpdateDocumentDTO, SearchDocumentDTO } from "../dtos/document.dto.ts";
 
 export interface IDocumentRepository {
-    create(data: UploadDocumentDTO): Promise<void>;
-    findAll(): Promise<any[]>;
-    findById(id: string): Promise<any | null>;
-    delete(id: string): Promise<any | null>;
-    update(id: string, data: UpdateDocumentDTO): Promise<any>;
-    search(filters: SearchDocumentDTO): Promise<any[]>;
+    create(data: UploadDocumentDTO): Promise<Result<void, string>>;
+    findAll(page: number, limit: number): Promise<Result<{ data: any[]; total: number }, string>>;
+    findById(id: string): Promise<Result<any, string>>;
+    delete(id: string): Promise<Result<any, string>>;
+    update(id: string, data: UpdateDocumentDTO): Promise<Result<any, string>>;
+    search(filters: SearchDocumentDTO, page: number, limit: number):  Promise<Result<{ data: any[]; total: number }, string>>;
 }

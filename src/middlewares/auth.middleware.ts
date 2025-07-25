@@ -1,3 +1,4 @@
+import { matchRes } from "@carbonteq/fp";
 import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/asyncHandler.ts";
 import { ApiError } from "../utils/ApiError.ts";
@@ -35,14 +36,18 @@ export const verifyJWT = asyncHandler( async (req:RequestWithUser, _: Response, 
         throw new ApiError(401,"Invalid access token")
     }
     
-    const existedUser = await userRepo.getUserById(decodedToken.id)
+    const result  = await userRepo.getUserById(decodedToken.id)
     
-    if (!existedUser) throw new ApiError(401, "User does not exist.");
-    
-    req.user = {
-        ...existedUser,
-        role: decodedToken.role as "ADMIN" | "USER",
-    };
-
-    next();
+    return matchRes(result, {
+            Ok: (user) => {
+                req.user = {
+                    ...user,
+                    role: decodedToken.role as "ADMIN" | "USER",
+                };
+                return next();
+            },
+            Err: (err) => {
+                throw new ApiError(401, `User authentication failed: ${err}`);
+            },
+    });
 });

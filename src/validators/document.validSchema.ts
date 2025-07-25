@@ -20,3 +20,10 @@ export const documentSearchSchema = z.object({
     startDate: z.string().datetime().optional(),
     endDate: z.string().datetime().optional(),
 });
+
+export const paginationSchema = z.object({
+    page: z.string().optional().transform((val) => parseInt(val ?? "1")),
+    limit: z.string().optional().transform((val) => parseInt(val ?? "5")),
+});
+
+export const documentSearchWithPaginationSchema = documentSearchSchema.merge(paginationSchema).strict();

@@ -1,8 +1,9 @@
+import { matchRes } from "@carbonteq/fp";
 import { Request, Response } from "express";
 import { ApiError } from "../utils/ApiError.ts";
 import { ApiResponse } from "../utils/ApiResponse.ts";
 import { asyncHandler } from "../utils/asyncHandler.ts";
-import { createDocumentSchema, updateDocumentSchema, documentSearchSchema } from "../validators/document.validSchema.ts";
+import { createDocumentSchema, updateDocumentSchema, documentSearchWithPaginationSchema, paginationSchema } from "../validators/document.validSchema.ts";
 import { users } from "../schemas/user.schema.ts";
 import jwt from "jsonwebtoken";
 import path from "path";
@@ -29,33 +30,37 @@ export const createDocument = asyncHandler(
 
         const relativeFilePath = path.join("public", "temp", file.originalname);
 
-        await documentService.uploadDocument({
+        const result = await documentService.uploadDocument({
             ...parsed.data,
             filePath: relativeFilePath,
             uploadedBy: typedReq.user.id,
         });
 
-        return res
-            .status(201)
-            .json(new ApiResponse(201, {}, "Document uploaded successfully"));
+        return matchRes(result, {
+            Ok: () => res.status(201).json(new ApiResponse(201, {}, "Document uploaded successfully")),
+            Err: (err) => res.status(500).json(new ApiResponse(500, null, err)),
+        });
     }
 );
 
 export const getDocumentslist = asyncHandler(
     async (req: Request, res: Response) => {
-        const documentsList = await documentService.getAllDocuments();
 
-        if (documentsList.length === 0) throw new ApiError(500, "No Documents found.");
+        const parsed = paginationSchema.safeParse(req.query)
 
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    { documentsList },
-                    "Successfully fetched documents list from the Document Table"
-                )
-            );
+        if (!parsed.success) {
+            throw new ApiError(400, "Invalid pagination input", parsed.error.errors);
+        }
+
+        const { page, limit } = parsed.data;
+
+        const documentsList = await documentService.getAllDocuments(page, limit);
+
+        return matchRes(documentsList, {
+            Ok: ({data, total}) =>
+                res.status(200).json(new ApiResponse(200, { documents: data, total }, "Successfully fetched documents list.")),
+            Err: (err) => res.status(500).json(new ApiResponse(500, null, err)),
+        });
     }
 );
 
@@ -67,17 +72,13 @@ export const getSpecificDocument = asyncHandler(
 
         const document = await documentService.getDocumentById(documentID);
 
-        if (!document) throw new ApiError(404, "Document with the given ID was not found");
 
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    { document },
-                    "Successfully fetched the document with given ID."
-                )
-            );
+        return matchRes(document, {
+            Ok: (doc) =>
+                res.status(200).json(new ApiResponse(200, { document: doc }, "Document found")),
+            Err: (err) =>
+                res.status(404).json(new ApiResponse(404, null, err)),
+        });
     }
 );
 
@@ -87,19 +88,15 @@ export const deleteDocument = asyncHandler(
 
         if (!documentID) throw new ApiError(400, "Document ID is missing");
 
-        const deletedDocument = await documentService.deleteDocument(documentID);
+        const deletedDoc = await documentService.deleteDocument(documentID);
 
-        if (!deletedDocument) throw new ApiError(404, "Document not found");
-
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    { deletedDocument },
-                    "Document with given id successfully deleted."
-                )
-            );
+        return matchRes(deletedDoc, {
+            Ok: () => res.status(200).json(new ApiResponse(200, null, "Document deleted successfully")),
+            Err: (err) => {
+                const code = err.includes("not found") ? 404 : 500;
+                return res.status(code).json(new ApiResponse(code, null, err));
+            },
+        });
     }
 );
 
@@ -115,69 +112,78 @@ export const updateDocument = asyncHandler(
 
         const updated = await documentService.updateDocument(documentId, parsed.data);
 
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    { updatedDocument: updated },
-                    "Document updated successfully"
-                )
-            );
+        return matchRes(updated, {
+            Ok: () => res.status(200).json(new ApiResponse(200, null, "Document updated successfully")),
+            Err: (err) => {
+                const code = err.includes("not found") ? 404 : 400;
+                return res.status(code).json(new ApiResponse(code, null, err));
+            },
+        });
     }
 );
 
-export const generateDownloadLink = asyncHandler(
+export const generateDownloadLink = asyncHandler( 
     async (req: Request, res: Response) => {
         const documentID = req.params.id;
+    
         if (!documentID) throw new ApiError(400, "Document ID is required");
-
         const downloadUrl = await documentService.generateDownloadLink(documentID);
-
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(200, { downloadUrl }, "Download link generated")
-            );
+    
+        return matchRes(downloadUrl, {
+            Ok: (url) =>
+                res.status(200).json(new ApiResponse(200, { downloadUrl: url }, "Download link generated")),
+            Err: (err) => res.status(404).json(new ApiResponse(404, null, err)),
+        });
     }
 );
 
 
-export const streamDocumentFromToken = asyncHandler(async (req, res) => {
-    const token = req.params.token;
-
-    if (!token) {
-        throw new ApiError(400, "Missing download token");
+export const streamDocumentFromToken = asyncHandler(
+    async (req: Request, res: Response) => {
+        const token = req.params.token;
+    
+        if (!token) throw new ApiError(400, "Missing download token");
+    
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.DOWNLOAD_TOKEN_SECRET!);
+        } catch (error) {
+            throw new ApiError(401, "Invalid or expired download token");
+        }
+    
+        const documentID = (decoded as any).documentID;
+    
+        const result = await documentService.streamDocument(documentID);
+    
+        return matchRes(result, {
+            Ok: ({ path: filePath, filename }) => {
+                res.setHeader("Content-Type", "application/octet-stream");
+                res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+                const fileStream = fs.createReadStream(filePath);
+                fileStream.pipe(res);
+            },
+            Err: (err) => res.status(404).json(new ApiResponse(404, null, err)),
+        });    
     }
+);
 
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.DOWNLOAD_TOKEN_SECRET!);
-    } catch (error) {
-        throw new ApiError(401, "Invalid or expired download token");
+
+export const searchDocuments = asyncHandler(
+    async (req: Request, res: Response) => {
+        const parsed = documentSearchWithPaginationSchema.safeParse(req.query);
+    
+        if (!parsed.success) {
+            throw new ApiError(400, "Invalid search params", parsed.error.errors);
+        }
+    
+        const { page, limit, ...searchFields } = parsed.data;
+    
+        const results = await documentService.searchDocuments(searchFields, page, limit);
+    
+        return matchRes(results, {
+            Ok: ({ data, total}) =>
+                res.status(200).json(new ApiResponse(200, { results: data, total }, "Documents found")),
+            Err: (err) => res.status(500).json(new ApiResponse(500, null, err)),
+        });
     }
-
-    const documentID = (decoded as any).documentID;
-
-    const { path: filePath, filename } = await documentService.streamDocument(documentID);
-
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-});
-
-
-export const searchDocuments = asyncHandler(async (req, res) => {
-    const parsed = documentSearchSchema.safeParse(req.query);
-
-    if (!parsed.success) {
-        throw new ApiError(400, "Invalid search params", parsed.error.errors);
-    }
-
-    const results = await documentService.searchDocuments(parsed.data);
-    return res
-        .status(200)
-        .json(new ApiResponse(200, results, "Filtered documents fetched"));
-});
+);
