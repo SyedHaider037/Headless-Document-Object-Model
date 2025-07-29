@@ -1,3 +1,4 @@
+import { ILogger } from "../interfaces/logger.interface.ts";
 import { Result } from "@carbonteq/fp";
 import { IPermissionRepository } from "../interfaces/permissionRepository.interface.ts";
 import { inject, injectable } from "tsyringe";
@@ -6,46 +7,55 @@ import { IPermissionService } from "../interfaces/permissionService.interface.ts
 
 @injectable()
 export class PermissionService implements IPermissionService {
-    constructor(@inject(TOKENS.IPermissionRepository) private readonly repo: IPermissionRepository) {}
+    constructor(
+        @inject(TOKENS.IPermissionRepository) private readonly repo: IPermissionRepository,
+        @inject(TOKENS.ILogger) private readonly logger : ILogger
+    ) {}
 
     async canUserChangeDocument( userId: string, role :string, docId: string, action: string, ): Promise<Result<boolean, string>> {
-        const resRole = await this.repo.findUserRole(userId);
-        if (resRole.isErr()) return Result.Err(resRole.unwrapErr());
+        this.logger.info(`Checking if user ${userId} with role ${role} can perform '${action}' on document ${docId}`);
 
-        const roleOpt = resRole.unwrap();
-        if (roleOpt.isNone()) return Result.Ok(false);
-
-        const roleId = roleOpt.unwrap().roleId;
-
-        const resDocument = await this.repo.findDocumentById(docId);
-        if (resDocument.isErr()) return Result.Err(resDocument.unwrapErr());
-
-        const docOpt = resDocument.unwrap();
-        if (docOpt.isNone()) return Result.Ok(false);
-
-        const document = docOpt.unwrap();
-
-        if (document.uploadedBy === userId || role === "ADMIN") {
-            const resPerm = await this.repo.checkRolePermission(roleId, action);
-            if (resPerm.isErr()) return Result.Err(resPerm.unwrapErr());
-            return Result.Ok(resPerm.unwrap());
-        }
-
-        return Result.Ok(false);
+        return Result.Ok(userId)
+            .flatMap((userId) => this.repo.findUserRole(userId))                      // Result<{ roleId: string }, string>
+            .flatMap(async (roleData) => {
+                const docRes = await this.repo.findDocumentById(docId);                              // Result<Document, string> 
+                return docRes.map((document) => {
+                    this.logger.debug(`Found document. Uploaded by: ${document.uploadedBy}`);
+                    return { roleData, document }
+                });                                                                                    ; // Result<{ roleData, document }, string>
+            })
+            .flatMap(async ({ roleData, document }) => {
+                if (document.uploadedBy !== userId && role !== "ADMIN") {       
+                    const msg = "User is not allowed to perform this action";
+                    this.logger.warn(`Permission denied for user ${userId} on document ${docId}: ${msg}`);
+                    return Result.Err(msg);
+                }
+                this.logger.info(`Checking permission for role ${roleData.roleId} to perform '${action}'`);
+                return this.repo.checkRolePermission(roleData.roleId, action); 
+            })
+            .mapErr((err) => {
+                this.logger.error(`Error in permission check for user ${userId} on document ${docId}: ${err}`);
+                return err;
+            })
+            .toPromise();
     }
 
     async canUserPerformAction(userId: string, action: string): Promise<Result<boolean, string>> {
-        const resRole = await this.repo.findUserRole(userId);
-        if (resRole.isErr()) return Result.Err(resRole.unwrapErr());
+        this.logger.info(`Checking if user ${userId} can perform action '${action}'`);
 
-        const roleOpt = resRole.unwrap();
-        if (roleOpt.isNone()) return Result.Ok(false);
-
-        const roleId = roleOpt.unwrap().roleId;
-
-        const resPermission  =  await this.repo.checkRolePermission(roleId, action);
-        if (resPermission.isErr()) return Result.Err(resPermission.unwrapErr());
-
-        return Result.Ok(resPermission.unwrap());
+        return Result.Ok(userId)
+            .flatMap((userId) => {
+                this.logger.debug(`Fetching role data for user: ${userId}`);
+                return this.repo.findUserRole(userId)
+            })
+            .flatMap((roleData) => { 
+                this.logger.info(`Checking permission for role ${roleData.roleId} to perform '${action}'`);
+                return this.repo.checkRolePermission(roleData.roleId, action)
+            })
+            .mapErr((err) => {
+                this.logger.error(`Error during permission check for user ${userId}: ${err}`);
+                return err;
+            })
+            .toPromise()
     }
 }

@@ -84,14 +84,6 @@ export class DocumentRepository implements IDocumentRepository {
                 conditions.push(like(documents.tag, `%${filters.tag}%`));
             if (filters.uploadedBy)
                 conditions.push(eq(documents.uploadedBy, filters.uploadedBy));
-            if (filters.startDate)
-                conditions.push(
-                    gte(documents.createdAt, new Date(filters.startDate))
-                );
-            if (filters.endDate)
-                conditions.push(
-                    lte(documents.createdAt, new Date(filters.endDate))
-                );
                 
             const offset = (page - 1) * limit;    
     
@@ -103,7 +95,7 @@ export class DocumentRepository implements IDocumentRepository {
             const result = await db
                 .select()
                 .from(documents)
-                .where(and(...conditions))
+                .where(or(...conditions))
                 .limit(limit)
                 .offset(offset)
                 .orderBy(desc(documents.createdAt));

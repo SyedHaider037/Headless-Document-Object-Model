@@ -17,8 +17,6 @@ export const documentSearchSchema = z.object({
     title: z.string().optional(),
     tag: z.string().optional(),
     uploadedBy: z.string().uuid().optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
 });
 
 export const paginationSchema = z.object({

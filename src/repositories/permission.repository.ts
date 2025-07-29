@@ -47,7 +47,7 @@ export class PermissionRepository implements IPermissionRepository {
                         eq(globalPermissions.action, action)
                     )
                 );
-            return Result.Ok(!!perm);
+            return perm ? Result.Ok(!!perm) : Result.Err("Permission  not found");
         } catch (err) {
             return Result.Err("Failed to check role permission");
         }

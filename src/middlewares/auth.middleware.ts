@@ -23,7 +23,7 @@ export type MyToken ={
 export const verifyJWT = asyncHandler( async (req:RequestWithUser, _: Response, next: NextFunction) => {
     const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer","");
     
-    if (!token) throw new ApiError(401, "Unauthorized request")
+    if (!token) throw new ApiError(401, "Unauthorized request");
 
     let decodedToken: MyToken;
     
