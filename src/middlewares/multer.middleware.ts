@@ -1,4 +1,6 @@
 import multer, { StorageEngine } from "multer";
+import path from "path";
+import { randomUUID } from "crypto";
 import { Request } from "express";
 
 const storage: StorageEngine = multer.diskStorage({
@@ -14,7 +16,10 @@ const storage: StorageEngine = multer.diskStorage({
         file: Express.Multer.File,
         cb: (error: Error | null, filename: string) => void
     ) {
-        cb(null, file.originalname);
+        const ext = path.extname(file.originalname);
+        const base = path.basename(file.originalname, ext);
+        const uniqueName = `${base}-${randomUUID()}${ext}`;
+        cb(null, uniqueName);
     }
 });
 
